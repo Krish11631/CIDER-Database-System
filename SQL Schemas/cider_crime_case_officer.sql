@@ -40,6 +40,7 @@ CREATE TABLE `case_officer` (
 LOCK TABLES `case_officer` WRITE;
 /*!40000 ALTER TABLE `case_officer` DISABLE KEYS */;
 INSERT INTO `case_officer` VALUES (1002,102,'2026-01-16');
+INSERT INTO CIDER_HR.OFFICER (Officer_ID, Name, Officer_Rank, Branch_ID) VALUES (9999, 'System Admin', 'DGP', 1);
 /*!40000 ALTER TABLE `case_officer` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
