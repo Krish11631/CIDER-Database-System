@@ -1,4 +1,3 @@
-
 1. Open **MySQL Workbench**.
 2. Run the **SQL schema script** provided in the project.
 3. This script will automatically create **three databases**:

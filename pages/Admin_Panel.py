@@ -6,6 +6,8 @@ if st.session_state.get('role') != 'Admin':
     st.error("Access Denied: Administrator clearance required.")
     st.stop()
 
+officers = run_query("SELECT Officer_ID FROM CIDER_HR.OFFICER;")
+
 #Written the login details in side and automatically opens up acc to login details
 with st.sidebar:
     st.write(f"Logged in as: {st.session_state.get('role')} (ID: {st.session_state.get('user_id')})")
@@ -43,9 +45,9 @@ with tab2:
         valid_branches = df_branches['Branch_ID'].tolist()
     except Exception:
         valid_branches = []
-
+# here
     with st.form("recruit_form"):
-        new_id = st.number_input("Officer ID", min_value=1, step=1)
+        new_id = st.number_input("Officer ID")
         new_name = st.text_input("Full Name")
         new_rank = st.selectbox("Rank", ["Constable", "Sub-Inspector", "Inspector", "ACP", "System Admin"])
         new_branch = st.selectbox("Branch ID", valid_branches)
@@ -70,7 +72,7 @@ with tab2:
 with tab3:
     st.subheader("Update Officer Profile")
     with st.form("update_form"):
-        update_id = st.number_input("Enter Officer ID to Update", min_value=1, step=1)
+        update_id = st.selectbox("Select Officer to update", officers["Officer_ID"])
         update_rank = st.selectbox("New Rank", ["Constable", "Sub-Inspector", "Inspector", "ACP", "System Admin"])
         update_branch = st.selectbox("New Branch ID", valid_branches)
         
@@ -91,7 +93,7 @@ with tab3:
 with tab4:
     st.subheader("Terminate Officer")
     with st.form("terminate_form"):
-        term_id = st.number_input("Enter Officer ID to Terminate", min_value=1, step=1)
+        term_id = st.selectbox("Select Officer to terminate", officers["Officer_ID"])
         submit_term = st.form_submit_button("Terminate", type="primary")
         
         if submit_term:
