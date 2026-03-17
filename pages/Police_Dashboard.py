@@ -10,6 +10,15 @@ if st.session_state.get('role') not in ['Police', 'Admin']:
 st.title("Police Dashboard")
 st.caption("Courage is not the absence of fear, but the decision to stand between danger and the innocent.")
 
+#Written the login details in side and automatically opens up acc to login details
+with st.sidebar:
+    st.write(f"Logged in as: {st.session_state.get('role')} (ID: {st.session_state.get('user_id')})")
+    if st.button("Logout", type="primary"):
+        st.session_state['logged_in'] = False
+        st.session_state['role'] = None
+        st.session_state['user_id'] = None
+        st.switch_page("Login_Page.py")
+
 st.divider()
 
 tab1, tab2, tab3 = st.tabs(["Cases Under My Charge", "Update Case Status", "Evidence Submission Desk"])
