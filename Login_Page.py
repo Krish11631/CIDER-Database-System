@@ -31,24 +31,33 @@ if not st.session_state['logged_in']:
                         runner = run_query(query)
 
                         if not runner.empty:
-                            # Bulletproof column check for rank
-                            if 'Officer_Rank' in runner.columns:
-                                db_rank = runner['Officer_Rank'].iloc[0]
-                            elif 'officer_rank' in runner.columns:
+                            # 1. Force all column names to lowercase so we never miss one
+                            runner.columns = [col.lower() for col in runner.columns]
+                            
+                            # 2. Extract rank safely
+                            if 'officer_rank' in runner.columns:
                                 db_rank = runner['officer_rank'].iloc[0]
+                            elif 'rank' in runner.columns:
+                                db_rank = runner['rank'].iloc[0]
                             else:
-                                db_rank = runner['Rank'].iloc[0]
+                                db_rank = "Unknown"
                                 
-                            db_branch = runner['Branch_ID'].iloc[0]
+                            # 3. Extract branch safely
+                            if 'branch_id' in runner.columns:
+                                db_branch = runner['branch_id'].iloc[0]
+                            else:
+                                db_branch = 1
                             
                             valid_login = False
+                            final_rank = str(db_rank).strip().lower()
                             
                             # Validate dropdown role against actual database rank/branch
-                            if role == "Admin" and db_rank == "System Admin":
+                            # ADDED "dgp" TO THE ADMIN CHECK HERE!
+                            if role == "Admin" and ("admin" in final_rank or "dgp" in final_rank):
                                 valid_login = True
-                            elif role == "ACP" and db_rank == "ACP":
+                            elif role == "ACP" and "acp" in final_rank:
                                 valid_login = True
-                            elif role == "Police" and db_rank in ["Constable", "Sub-Inspector", "Inspector"]:
+                            elif role == "Police" and final_rank in ["constable", "sub-inspector", "inspector", "police"]:
                                 valid_login = True
                             elif role == "Forensic" and db_branch == 3:
                                 valid_login = True
@@ -61,7 +70,7 @@ if not st.session_state['logged_in']:
                                 st.success("Login Successful")
                                 st.rerun()
                             else:
-                                st.error(f"Access Denied: ID {entered_id} does not have {role} privileges.")
+                                st.error(f"Access Denied: ID {entered_id} does not have {role} privileges. (Database rank found: '{final_rank}')")
                         else:
                             st.error("Invalid ID")
                     except Exception as e:

@@ -6,37 +6,29 @@ if st.session_state.get('role') not in ['ACP', 'Admin']:
     st.error("Access Denied: ACP clearance required.")
     st.stop()
 
+user_id = st.session_state.get('user_id')
+try:
+    user_info = run_query(f"SELECT Name, Branch_ID FROM CIDER_HR.OFFICER WHERE Officer_ID = {user_id};")
+    if user_info is not None and not user_info.empty:
+        acp_name = user_info['Name'].iloc[0]
+        acp_branch_id = user_info['Branch_ID'].iloc[0]
+    else:
+        acp_name = "Unknown"
+        acp_branch_id = 1 
+except:
+    acp_name = "Error"
+    acp_branch_id = 1 
+
 with st.sidebar:
     st.write(f"Logged in as: **{st.session_state.get('role')}**")
-    st.caption(f"ID: {st.session_state.get('user_id')}")
+    st.caption(f"id = {user_id} name = \"{acp_name.upper()}\"")
     st.divider()
 
-    role = st.session_state.get('role')
-    st.subheader("Navigation")
-    
-    if role == 'Admin':
-        st.page_link("pages/Admin_Panel.py", label="Admin Panel", icon="🛡️")
-    elif role == 'ACP':
-        st.page_link("pages/ACP_Dashboard.py", label="ACP Dashboard", icon="🏢")
-    elif role == 'Police':
-        st.page_link("pages/Police_Dashboard.py", label="Police Dashboard", icon="🚓")
-    elif role == 'Forensic':
-        st.page_link("pages/Evidence_Room.py", label="Evidence Room", icon="🧬")
-        
-    st.divider()
     if st.button("Logout", type="primary", use_container_width=True):
         st.session_state['logged_in'] = False
         st.session_state['role'] = None
         st.session_state['user_id'] = None
         st.switch_page("Login_Page.py")
-
-
-user_id = st.session_state.get('user_id')
-try:
-    user_info = run_query(f"SELECT Branch_ID FROM CIDER_HR.OFFICER WHERE Officer_ID = {user_id};")
-    acp_branch_id = user_info['Branch_ID'].iloc[0] if not user_info.empty else 1
-except:
-    acp_branch_id = 1 
 
 st.title("ACP Operations Dashboard")
 st.caption(f"Monitor Branch {acp_branch_id}. Manage the force. Close the cases.")
@@ -45,7 +37,6 @@ st.divider()
 
 tab1, tab2, tab3, tab4 = st.tabs(["Crime Hotspots", "Officer Workload", "Assign Case", "Search Cases"])
 
-#Crime Hotspots
 with tab1:
     st.subheader(f"Branch {acp_branch_id} Case Load by Crime Type")
 
@@ -63,7 +54,7 @@ with tab1:
         total_cases = data["Active_Cases"].sum()
         total_types = len(data)
 
-        col1.metric("Total Active Cases", total_cases)
+        col1.metric("Total Active Cases", int(total_cases))
         col2.metric("Different Crime Types", total_types)
 
         hotspot_cases = data["Active_Cases"].max()
@@ -77,7 +68,6 @@ with tab1:
     else:
         st.info("No active cases found for your branch.")
 
-# Officer Workload
 with tab2:
     st.subheader("Branch Officer Workload Dashboard")
 
@@ -116,7 +106,6 @@ with tab2:
         col2.metric("Officers With Assigned Cases", 0)
         st.info("No cases currently assigned to your branch officers.")
 
-# Assign Case
 with tab3:
     st.subheader("Case Assignment Portal")
 
@@ -155,7 +144,6 @@ with tab3:
     else:
         st.info("You either have no unresolved cases or no available officers in your branch right now.")
 
-# Case Search
 with tab4:
     st.subheader("Global Case Search Portal")
     
@@ -169,7 +157,7 @@ with tab4:
         search_val = st.text_input("Enter Crime Type (e.g., Robbery, Fraud)")
         query = f"SELECT * FROM CIDER_CRIME.CASE_FILE WHERE Crime_Type LIKE '%{search_val}%';"
         
-    else: # Status
+    else: 
         search_val = st.selectbox("Select Status", ["Active", "Pending", "Solved"])
         query = f"SELECT * FROM CIDER_CRIME.CASE_FILE WHERE Status = '{search_val}';"
 
