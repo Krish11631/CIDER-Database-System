@@ -31,8 +31,14 @@ if not st.session_state['logged_in']:
                         runner = run_query(query)
 
                         if not runner.empty:
-                            # Fetch exact rank and branch from the database
-                            db_rank = runner['officer_rank'].iloc[0]
+                            # Bulletproof column check for rank
+                            if 'Officer_Rank' in runner.columns:
+                                db_rank = runner['Officer_Rank'].iloc[0]
+                            elif 'officer_rank' in runner.columns:
+                                db_rank = runner['officer_rank'].iloc[0]
+                            else:
+                                db_rank = runner['Rank'].iloc[0]
+                                
                             db_branch = runner['Branch_ID'].iloc[0]
                             
                             valid_login = False
@@ -68,6 +74,7 @@ if not st.session_state['logged_in']:
 else:
     role = st.session_state['role']
     
+    # Automatically route the user to their specific dashboard
     if role == "Admin":
         st.switch_page("pages/Admin_Panel.py")
     elif role == "ACP":
