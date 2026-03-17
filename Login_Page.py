@@ -31,12 +31,31 @@ if not st.session_state['logged_in']:
                         runner = run_query(query)
 
                         if not runner.empty:
-                            st.session_state['logged_in'] = True
-                            st.session_state['role'] = role
-                            st.session_state['user_id'] = entered_id
+                            # Fetch exact rank and branch from the database
+                            db_rank = runner['officer_rank'].iloc[0]
+                            db_branch = runner['Branch_ID'].iloc[0]
                             
-                            st.success("Login Successful")
-                            st.rerun()
+                            valid_login = False
+                            
+                            # Validate dropdown role against actual database rank/branch
+                            if role == "Admin" and db_rank == "System Admin":
+                                valid_login = True
+                            elif role == "ACP" and db_rank == "ACP":
+                                valid_login = True
+                            elif role == "Police" and db_rank in ["Constable", "Sub-Inspector", "Inspector"]:
+                                valid_login = True
+                            elif role == "Forensic" and db_branch == 3:
+                                valid_login = True
+                                
+                            if valid_login:
+                                st.session_state['logged_in'] = True
+                                st.session_state['role'] = role
+                                st.session_state['user_id'] = entered_id
+                                
+                                st.success("Login Successful")
+                                st.rerun()
+                            else:
+                                st.error(f"Access Denied: ID {entered_id} does not have {role} privileges.")
                         else:
                             st.error("Invalid ID")
                     except Exception as e:

@@ -1,6 +1,12 @@
 import streamlit as st
 from database import run_query
 
+
+if st.session_state.get('role') not in ['Police', 'Admin']:
+    st.error("Access Denied: Police clearance required.")
+    st.stop()
+
+
 st.title("Police Dashboard")
 st.caption("Courage is not the absence of fear, but the decision to stand between danger and the innocent.")
 

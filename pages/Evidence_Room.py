@@ -3,6 +3,11 @@ from database import run_query
 import pandas as pd
 import time
 
+if st.session_state.get('role') not in ['Forensic', 'Admin']:
+    st.error("Access Denied: Forensic Department Only")
+    st.stop()
+
+
 # Access control
 if st.session_state.get('role') != 'Forensic':
     st.error("Access Denied: Forensic Department Only")

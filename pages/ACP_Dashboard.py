@@ -1,6 +1,11 @@
 import streamlit as st
 from database import run_query
 
+if st.session_state.get('role') not in ['ACP', 'Admin']:
+    st.error("Access Denied: ACP clearance required.")
+    st.stop()
+
+
 st.title("ACP Operations Dashboard")
 st.caption("Monitor the city. Manage the force. Close the cases.")
 
