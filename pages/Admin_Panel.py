@@ -47,7 +47,7 @@ font-weight:600;
 }
 
 .stTabs [aria-selected="true"]{
-background:#2563eb;
+background:#303641;
 color:white;
 }
 

@@ -37,7 +37,7 @@ font-weight:600;
 }
 
 .stTabs [aria-selected="true"]{
-background:#2563eb;
+background:#303641;
 color:white;
 }
 
@@ -172,6 +172,8 @@ with tab2:
 
     st.subheader("Register New Evidence")
 
+    case_ids_df = run_query("SELECT Case_ID FROM CIDER_CRIME.CASE_FILE ORDER BY Case_ID;")
+
     with st.form("add_evidence_form"):
 
         ev_id = st.number_input("Evidence ID", min_value=1, step=1)
@@ -183,7 +185,12 @@ with tab2:
 
         analysis = st.text_area("Analysis Log")
         storage = st.text_input("Storage Location")
-        case_id = st.number_input("Case ID", min_value=1, step=1)
+
+        if case_ids_df is not None and not case_ids_df.empty:
+            case_id = st.selectbox("Case ID", case_ids_df["Case_ID"])
+        else:
+            case_id = None
+            st.info("No case IDs available in database.")
 
         submit = st.form_submit_button("Add Evidence")
 
@@ -191,19 +198,23 @@ with tab2:
 
             try:
 
-                insert_query = f"""
-                INSERT INTO CIDER_EVIDENCE.EVIDENCE
-                (Evidence_ID, Evidence_Type, Analysis_Log, Storage_Location, Case_ID)
-                VALUES
-                ({ev_id}, '{ev_type}', '{analysis}', '{storage}', {case_id})
-                """
+                if case_id is None:
+                    st.warning("Cannot add evidence without a valid Case ID.")
+                else:
 
-                run_query(insert_query)
+                    insert_query = f"""
+                    INSERT INTO CIDER_EVIDENCE.EVIDENCE
+                    (Evidence_ID, Evidence_Type, Analysis_Log, Storage_Location, Case_ID)
+                    VALUES
+                    ({ev_id}, '{ev_type}', '{analysis}', '{storage}', {case_id})
+                    """
 
-                st.success("Evidence registered successfully")
+                    run_query(insert_query)
 
-                time.sleep(1)
-                st.rerun()
+                    st.success("Evidence registered successfully")
+
+                    time.sleep(1)
+                    st.rerun()
 
             except Exception as e:
                 st.error(f"Database Error: {e}")
@@ -246,30 +257,49 @@ with tab3:
 # SEARCH CASE
 with tab4:
 
-    st.subheader("Search Evidence by Case ID")
+    st.markdown("""
+    ### Case Intelligence Search
+    Search the entire crime database by case ID, crime type, or status.
+    """)
+    
+    case_ids_df = run_query("SELECT Case_ID FROM CIDER_CRIME.CASE_FILE ORDER BY Case_ID;")
+    crime_types_df = run_query("SELECT DISTINCT Crime_Type FROM CIDER_CRIME.CASE_FILE WHERE Crime_Type IS NOT NULL ORDER BY Crime_Type;")
 
-    case_search = st.number_input("Enter Case ID", min_value=1, step=1)
+    search_type = st.radio("Search By:", ["Case ID", "Crime Type", "Status"], horizontal=True)
+    
+    if search_type == "Case ID":
+        if case_ids_df is not None and not case_ids_df.empty:
+            search_val = st.selectbox("Select Case ID", case_ids_df["Case_ID"])
+            query = f"SELECT * FROM CIDER_CRIME.CASE_FILE WHERE Case_ID = {search_val};"
+        else:
+            query = None
+            st.info("No case IDs available in database.")
+        
+    elif search_type == "Crime Type":
+        if crime_types_df is not None and not crime_types_df.empty:
+            search_val = st.selectbox("Select Crime Type", crime_types_df["Crime_Type"])
+            query = f"SELECT * FROM CIDER_CRIME.CASE_FILE WHERE Crime_Type = '{search_val}';"
+        else:
+            query = None
+            st.info("No crime types available in database.")
+        
+    else: 
+        search_val = st.selectbox("Select Status", ["Active", "Pending", "Solved"])
+        query = f"SELECT * FROM CIDER_CRIME.CASE_FILE WHERE Status = '{search_val}';"
 
-    if st.button("Search"):
-
+    if st.button("Search Cases", type="primary"):
         try:
-
-            query = f"""
-            SELECT *
-            FROM CIDER_EVIDENCE.EVIDENCE
-            WHERE Case_ID = {case_search}
-            """
-
-            df = run_query(query)
-
-            if df.empty:
-                st.warning("No evidence found for this case")
+            if query is None:
+                st.warning("No search query could be created.")
             else:
-                st.dataframe(df, use_container_width=True)
-
+                results = run_query(query)
+                if results is not None and not results.empty:
+                    st.success(f"Found {len(results)} matching records.")
+                    st.dataframe(results, use_container_width=True)
+                else:
+                    st.warning("No cases found matching your criteria.")
         except Exception as e:
             st.error(f"Database Error: {e}")
-
 
 # SUMMARY
 with tab5:

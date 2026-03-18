@@ -1,5 +1,6 @@
 import streamlit as st
 from database import run_query
+import time
 
 st.markdown("""
 <style>
@@ -35,7 +36,7 @@ font-weight:600;
 }
 
 .stTabs [aria-selected="true"]{
-background:#2563eb;
+background:#303641;
 color:white;
 }
 
@@ -119,15 +120,20 @@ st.caption("Courage is not the absence of fear, but the decision to stand betwee
 st.divider()
 
 
-tab1, tab2, tab3 = st.tabs([
+tab1, tab2, tab3, tab4 = st.tabs([
     "Cases Under My Charge",
     "Update Case Status",
-    "Evidence Submission Desk"
+    "Evidence Submission Desk",
+    "File New Case"
 ])
 
 
 cases = run_query("SELECT Case_ID FROM CIDER_CRIME.CASE_FILE;")
 officers = run_query("SELECT Officer_ID FROM CIDER_HR.OFFICER;")
+branch_df = run_query(
+    f"SELECT Branch_ID FROM CIDER_HR.OFFICER WHERE Officer_ID = {st.session_state.get('user_id')};"
+)
+all_branches = run_query("SELECT Branch_ID FROM CIDER_HR.BRANCH ORDER BY Branch_ID;")
 
 
 # My Cases
@@ -183,27 +189,166 @@ with tab2:
 # Evidence Submission
 with tab3:
 
-    st.subheader("Add Evidence")
+    st.subheader("Register New Evidence")
 
-    case_id = st.selectbox("Select Case for Evidence", my_cases["Case_ID"])
+    if my_cases.empty:
+        st.info("No cases assigned.")
+    else:
 
-    evidence_desc = st.text_input("Enter Evidence Description")
+        eligible_cases = my_cases[
+            my_cases["Status"].astype(str).str.lower() != "solved"
+        ]
 
-    if st.button("Submit Evidence"):
-
-        if evidence_desc:
-
-            query = f"""
-            INSERT INTO CIDER_EVIDENCE.EVIDENCE (Case_ID, Description)
-            VALUES ({case_id}, '{evidence_desc}');
-            """
-
-            run_query(query)
-
-            st.success("Evidence submitted successfully.")
-
+        if eligible_cases.empty:
+            st.warning("All assigned cases are solved. Evidence cannot be added.")
         else:
-            st.warning("Please enter evidence details.")
+
+            with st.form("police_add_evidence_form"):
+
+                ev_id = st.number_input("Evidence ID", min_value=1, step=1)
+
+                ev_type = st.selectbox(
+                    "Evidence Type",
+                    ["Physical", "Digital", "Fingerprint", "DNA", "Weapon", "Other"]
+                )
+
+                analysis = st.text_area("Analysis Log")
+                storage = st.text_input("Storage Location")
+
+                selected_case_id = st.selectbox(
+                    "Select Case ID",
+                    options=eligible_cases["Case_ID"].tolist()
+                )
+
+                submit = st.form_submit_button("Add Evidence")
+
+                if submit:
+
+                    selected_case_status = my_cases.loc[
+                        my_cases["Case_ID"] == selected_case_id, "Status"
+                    ].iloc[0]
+
+                    if str(selected_case_status).strip().lower() == "solved":
+                        st.error("Cannot add evidence to a solved case.")
+                    else:
+                        try:
+
+                            insert_query = f"""
+                            INSERT INTO CIDER_EVIDENCE.EVIDENCE
+                            (Evidence_ID, Evidence_Type, Analysis_Log, Storage_Location, Case_ID)
+                            VALUES
+                            ({ev_id}, '{ev_type}', '{analysis}', '{storage}', {selected_case_id})
+                            """
+
+                            run_query(insert_query)
+
+                            st.success("Evidence registered successfully")
+
+                            time.sleep(1)
+                            st.rerun()
+
+                        except Exception as e:
+                            st.error(f"Database Error: {e}")
+
+
+# File New Case
+with tab4:
+
+    st.subheader("File FIR / New Case")
+
+    user_role = st.session_state.get("role")
+    officer_id = st.session_state.get("user_id")
+
+    officer_branch_id = None
+    if branch_df is not None and not branch_df.empty:
+        officer_branch_id = int(branch_df["Branch_ID"].iloc[0])
+
+    next_case_df = run_query(
+        "SELECT COALESCE(MAX(Case_ID), 1000) + 1 AS Next_Case_ID FROM CIDER_CRIME.CASE_FILE;"
+    )
+    default_case_id = 1001
+    if next_case_df is not None and not next_case_df.empty:
+        default_case_id = int(next_case_df["Next_Case_ID"].iloc[0])
+
+    with st.form("file_new_case_form"):
+
+        st.text_input("Case ID (Auto Generated)", value=str(default_case_id), disabled=True)
+        paper_number = st.text_input("FIR / Paper Number")
+
+        crime_type = st.selectbox("Crime Type", ["Normal", "Terrorism"])
+
+        incident_date = st.date_input("Incident Date")
+        incident_time = st.time_input("Incident Time")
+
+        location = st.text_input("Incident Location")
+        description = st.text_area("Case Description")
+
+        if user_role == "Admin":
+            if all_branches is not None and not all_branches.empty:
+                selected_branch_id = st.selectbox("Branch ID", all_branches["Branch_ID"])
+            else:
+                selected_branch_id = None
+                st.warning("No branches found in database.")
+        else:
+            selected_branch_id = officer_branch_id
+            st.caption(f"Branch ID: {selected_branch_id}")
+
+        submit_case = st.form_submit_button("File Case")
+
+        if submit_case:
+
+            paper_number_clean = paper_number.strip()
+            location_clean = location.strip()
+            description_clean = description.strip().replace("'", "''")
+
+            if not paper_number_clean:
+                st.warning("FIR / Paper Number is required.")
+            elif not location_clean:
+                st.warning("Incident Location is required.")
+            elif selected_branch_id is None:
+                st.warning("Branch is required to file a case.")
+            else:
+                try:
+                    next_case_df_submit = run_query(
+                        "SELECT COALESCE(MAX(Case_ID), 1000) + 1 AS Next_Case_ID FROM CIDER_CRIME.CASE_FILE;"
+                    )
+                    new_case_id = default_case_id
+                    if next_case_df_submit is not None and not next_case_df_submit.empty:
+                        new_case_id = int(next_case_df_submit["Next_Case_ID"].iloc[0])
+
+                    duplicate_paper = run_query(
+                        f"SELECT Case_ID FROM CIDER_CRIME.CASE_FILE WHERE Paper_Number = '{paper_number_clean.replace("'", "''")}';"
+                    )
+
+                    if duplicate_paper is not None and not duplicate_paper.empty:
+                        st.error("FIR / Paper Number already exists. Use a unique value.")
+                    else:
+                        insert_case_query = f"""
+                        INSERT INTO CIDER_CRIME.CASE_FILE
+                        (Case_ID, Crime_Type, Description, Paper_Number, Incident_Date, Incident_Time, Location, Status, Branch_ID)
+                        VALUES
+                        ({new_case_id}, '{crime_type}', '{description_clean}', '{paper_number_clean.replace("'", "''")}', '{incident_date}', '{incident_time}', '{location_clean.replace("'", "''")}', 'Active', {selected_branch_id});
+                        """
+
+                        run_query(insert_case_query)
+
+                        officer_exists = run_query(
+                            f"SELECT Officer_ID FROM CIDER_HR.OFFICER WHERE Officer_ID = {officer_id};"
+                        )
+
+                        if officer_exists is not None and not officer_exists.empty:
+                            assign_query = f"""
+                            INSERT INTO CIDER_CRIME.CASE_OFFICER (Case_ID, Officer_ID, Assigned_Date)
+                            VALUES ({new_case_id}, {officer_id}, CURDATE());
+                            """
+                            run_query(assign_query)
+
+                        st.success(f"Case {new_case_id} filed successfully.")
+                        time.sleep(1)
+                        st.rerun()
+
+                except Exception as e:
+                    st.error(f"Database Error: {e}")
 
 
 st.divider()

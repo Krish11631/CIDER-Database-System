@@ -36,7 +36,7 @@ font-weight:600;
 }
 
 .stTabs [aria-selected="true"]{
-background:#2563eb;
+background:#303641;
 color:white;
 }
 
@@ -264,16 +264,27 @@ with tab4:
     ### Case Intelligence Search
     Search the entire crime database by case ID, crime type, or status.
     """)
+
+    case_ids_df = run_query("SELECT Case_ID FROM CIDER_CRIME.CASE_FILE ORDER BY Case_ID;")
+    crime_types_df = run_query("SELECT DISTINCT Crime_Type FROM CIDER_CRIME.CASE_FILE WHERE Crime_Type IS NOT NULL ORDER BY Crime_Type;")
     
     search_type = st.radio("Search By:", ["Case ID", "Crime Type", "Status"], horizontal=True)
     
     if search_type == "Case ID":
-        search_val = st.number_input("Enter Case ID", min_value=1, step=1)
-        query = f"SELECT * FROM CIDER_CRIME.CASE_FILE WHERE Case_ID = {search_val};"
+        if case_ids_df is not None and not case_ids_df.empty:
+            search_val = st.selectbox("Select Case ID", case_ids_df["Case_ID"])
+            query = f"SELECT * FROM CIDER_CRIME.CASE_FILE WHERE Case_ID = {search_val};"
+        else:
+            query = None
+            st.info("No case IDs available in database.")
         
     elif search_type == "Crime Type":
-        search_val = st.text_input("Enter Crime Type (e.g., Robbery, Fraud)")
-        query = f"SELECT * FROM CIDER_CRIME.CASE_FILE WHERE Crime_Type LIKE '%{search_val}%';"
+        if crime_types_df is not None and not crime_types_df.empty:
+            search_val = st.selectbox("Select Crime Type", crime_types_df["Crime_Type"])
+            query = f"SELECT * FROM CIDER_CRIME.CASE_FILE WHERE Crime_Type = '{search_val}';"
+        else:
+            query = None
+            st.info("No crime types available in database.")
         
     else: 
         search_val = st.selectbox("Select Status", ["Active", "Pending", "Solved"])
@@ -281,12 +292,15 @@ with tab4:
 
     if st.button("Search Cases", type="primary"):
         try:
-            results = run_query(query)
-            if results is not None and not results.empty:
-                st.success(f"Found {len(results)} matching records.")
-                st.dataframe(results, use_container_width=True)
+            if query is None:
+                st.warning("No search query could be created.")
             else:
-                st.warning("No cases found matching your criteria.")
+                results = run_query(query)
+                if results is not None and not results.empty:
+                    st.success(f"Found {len(results)} matching records.")
+                    st.dataframe(results, use_container_width=True)
+                else:
+                    st.warning("No cases found matching your criteria.")
         except Exception as e:
             st.error(f"Database Error: {e}")
 
