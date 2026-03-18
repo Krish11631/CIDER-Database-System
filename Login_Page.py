@@ -3,6 +3,36 @@ from database import run_query
 
 st.set_page_config(page_title="CIDER Login", layout="centered")
 
+def load_css():
+    with open("assets/style.css") as f:
+        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+
+load_css()
+
+hide_streamlit_style = """
+<style>
+
+[data-testid="stSidebar"] {display:none;}
+[data-testid="stSidebarNav"] {display:none;}
+div[data-testid="collapsedControl"] {display:none;}
+
+.stApp{
+background: radial-gradient(circle at top,#0f172a,#020617);
+color:white;
+}
+
+.stButton>button{
+background: linear-gradient(90deg,#2563eb,#06b6d4);
+color:white;
+border-radius:8px;
+border:none;
+}
+
+</style>
+"""
+
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+
 if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
 if 'role' not in st.session_state:
@@ -11,7 +41,8 @@ if 'user_id' not in st.session_state:
     st.session_state['user_id'] = None
 
 if not st.session_state['logged_in']:
-    st.title("CIDER System")
+    st.markdown("<h1 style='text-align:center;'>🕵️ CIDER System</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align:center;color:gray;'>Crime Investigation Data & Evidence Records</p>", unsafe_allow_html=True)
     st.write("Please log in with your credentials.")
     
     with st.form("login_form"):

@@ -2,6 +2,100 @@ import streamlit as st
 from database import run_query
 import pandas as pd
 
+st.markdown("""
+<style>
+
+/* Hide sidebar completely */
+[data-testid="stSidebar"] {display:none;}
+[data-testid="stSidebarNav"] {display:none;}
+div[data-testid="collapsedControl"] {display:none;}
+
+/* Dark control-room background */
+.stApp{
+background: linear-gradient(180deg,#0b1120,#020617);
+color:white;
+}
+
+/* Header bar */
+.header-bar{
+background:#020617;
+padding:12px 20px;
+border-radius:10px;
+border:1px solid #1e293b;
+margin-bottom:20px;
+}
+
+/* Tabs styling */
+.stTabs [role="tab"]{
+background:#020617;
+border:1px solid #1e293b;
+padding:10px 18px;
+border-radius:8px;
+margin-right:6px;
+font-weight:600;
+}
+
+.stTabs [aria-selected="true"]{
+background:#2563eb;
+color:white;
+}
+
+/* Metric cards */
+[data-testid="stMetric"]{
+background:#020617;
+border:1px solid #1e293b;
+padding:20px;
+border-radius:12px;
+}
+
+/* Buttons */
+.stButton>button{
+background: linear-gradient(90deg,#2563eb,#0ea5e9);
+color:white;
+border:none;
+border-radius:8px;
+font-weight:600;
+padding:8px 16px;
+}
+
+.stButton>button:hover{
+background: linear-gradient(90deg,#1d4ed8,#0284c7);
+}
+
+/* Logout button */
+/* Logout button (last button on page) */
+div[data-testid="stButton"]:last-child button{
+background: linear-gradient(90deg,#dc2626,#ef4444);
+color:white;
+border:none;
+border-radius:8px;
+font-weight:600;
+}
+
+div[data-testid="stButton"]:last-child button:hover{
+background: linear-gradient(90deg,#b91c1c,#dc2626);
+}
+                    
+.dashboard-title{
+font-size:56px;
+font-weight:800;
+letter-spacing:1px;
+background: linear-gradient(90deg,#3b82f6,#06b6d4);
+-webkit-background-clip:text;
+-webkit-text-fill-color:transparent;
+margin-bottom:10px;
+}
+
+/* Tables */
+[data-testid="stDataFrame"]{
+border-radius:10px;
+overflow:hidden;
+border:1px solid #1e293b;
+}
+
+</style>
+""", unsafe_allow_html=True)
+
 if st.session_state.get('role') not in ['ACP', 'Admin']:
     st.error("Access Denied: ACP clearance required.")
     st.stop()
@@ -19,18 +113,18 @@ except:
     acp_name = "Error"
     acp_branch_id = 1 
 
-with st.sidebar:
-    st.write(f"Logged in as: **{st.session_state.get('role')}**")
-    st.caption(f"id = {user_id} name = \"{acp_name.upper()}\"")
-    st.divider()
+st.write('<div class="dashboard-title">ACP Dashboard</div>', unsafe_allow_html=True)
 
-    if st.button("Logout", type="primary", use_container_width=True):
-        st.session_state['logged_in'] = False
-        st.session_state['role'] = None
-        st.session_state['user_id'] = None
-        st.switch_page("Login_Page.py")
+st.markdown(
+    f"""
+    <div class="header-bar">
+    <b>ACP Command Center</b><br>
+    Officer: {acp_name.upper()} | Branch {acp_branch_id}
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
-st.title("ACP Operations Dashboard")
 st.caption(f"Monitor Branch {acp_branch_id}. Manage the force. Close the cases.")
 
 st.divider()
@@ -38,7 +132,10 @@ st.divider()
 tab1, tab2, tab3, tab4 = st.tabs(["Crime Hotspots", "Officer Workload", "Assign Case", "Search Cases"])
 
 with tab1:
-    st.subheader(f"Branch {acp_branch_id} Case Load by Crime Type")
+    st.markdown("""
+    ### Branch Crime Activity
+    Identify the most active crime categories in the branch.
+    """)
 
     query = f"""SELECT Crime_Type, COUNT(*) AS Active_Cases
     FROM CIDER_CRIME.CASE_FILE
@@ -60,7 +157,19 @@ with tab1:
         hotspot_cases = data["Active_Cases"].max()
         hotspot_type = data[data["Active_Cases"] == hotspot_cases]["Crime_Type"].values[0]
 
-        st.info(f"The primary crime hotspot in your branch is {hotspot_type} with {hotspot_cases} active cases.")
+        st.markdown(f"""
+        <div style="
+        background:#020617;
+        border:1px solid #1e293b;
+        padding:18px;
+        border-radius:10px;
+        margin-top:10px;
+        font-size:16px;
+        ">
+        🔥 <b>Crime Hotspot Detected</b><br>
+        {hotspot_type} currently has <b>{hotspot_cases}</b> active cases in this branch.
+        </div>
+        """, unsafe_allow_html=True)
 
         st.divider()
         st.subheader("Active Cases by Type")
@@ -69,7 +178,10 @@ with tab1:
         st.info("No active cases found for your branch.")
 
 with tab2:
-    st.subheader("Branch Officer Workload Dashboard")
+    st.markdown("""
+    ### Officer Workload Analysis
+    Track officer assignment load and identify overburdened personnel.
+    """)
 
     officers_df = run_query(f"SELECT Officer_ID FROM CIDER_HR.OFFICER WHERE Branch_ID = {acp_branch_id};")
 
@@ -95,7 +207,7 @@ with tab2:
         st.subheader("Officer Case Distribution")
 
         data_sorted = data.sort_values(by="Total_Cases", ascending=False)
-        st.table(data_sorted)
+        st.dataframe(data_sorted, use_container_width=True, height=300)
 
         max_cases = data_sorted["Total_Cases"].max()
         busy = data_sorted[data_sorted["Total_Cases"] == max_cases]
@@ -107,7 +219,10 @@ with tab2:
         st.info("No cases currently assigned to your branch officers.")
 
 with tab3:
-    st.subheader("Case Assignment Portal")
+    st.markdown("""
+    ### Case Assignment Portal
+    Assign unresolved cases to available branch officers.
+    """)
 
     cases_query = f"SELECT Case_ID FROM CIDER_CRIME.CASE_FILE WHERE Branch_ID = {acp_branch_id} AND Status != 'Solved';"
     cases = run_query(cases_query)
@@ -145,7 +260,10 @@ with tab3:
         st.info("You either have no unresolved cases or no available officers in your branch right now.")
 
 with tab4:
-    st.subheader("Global Case Search Portal")
+    st.markdown("""
+    ### Case Intelligence Search
+    Search the entire crime database by case ID, crime type, or status.
+    """)
     
     search_type = st.radio("Search By:", ["Case ID", "Crime Type", "Status"], horizontal=True)
     
@@ -171,3 +289,13 @@ with tab4:
                 st.warning("No cases found matching your criteria.")
         except Exception as e:
             st.error(f"Database Error: {e}")
+
+st.divider()
+
+st.markdown('<div class="logout-red">', unsafe_allow_html=True)
+
+if st.button("Logout", key="logout_btn"):
+    st.session_state.clear()
+    st.switch_page("Login_Page.py")
+
+st.markdown('</div>', unsafe_allow_html=True)
