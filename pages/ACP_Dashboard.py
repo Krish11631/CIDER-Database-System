@@ -1,6 +1,7 @@
 import streamlit as st
 from database import run_query
 import pandas as pd
+import time
 
 st.markdown("""
 <style>
@@ -129,7 +130,13 @@ st.caption(f"Monitor Branch {acp_branch_id}. Manage the force. Close the cases."
 
 st.divider()
 
-tab1, tab2, tab3, tab4 = st.tabs(["Crime Hotspots", "Officer Workload", "Assign Case", "Search Cases"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    "Crime Hotspots",
+    "Officer Workload",
+    "Assign Case",
+    "Search Cases",
+    "Add Suspect"
+])
 
 with tab1:
     st.markdown("""
@@ -303,6 +310,153 @@ with tab4:
                     st.warning("No cases found matching your criteria.")
         except Exception as e:
             st.error(f"Database Error: {e}")
+
+with tab5:
+    st.markdown("""
+    ### Suspect Intake Desk
+    Add a suspect to a branch case using Case ID and map role in the investigation.
+    """)
+
+    case_options = run_query(
+        f"""
+        SELECT Case_ID
+        FROM CIDER_CRIME.CASE_FILE
+        WHERE Branch_ID = {acp_branch_id}
+        ORDER BY Case_ID;
+        """
+    )
+
+    existing_criminals = run_query(
+        """
+        SELECT Criminal_ID, Name, Age
+        FROM CIDER_CRIME.CRIMINAL
+        ORDER BY Criminal_ID;
+        """
+    )
+
+    next_criminal_df = run_query(
+        "SELECT COALESCE(MAX(Criminal_ID), 900) + 1 AS Next_Criminal_ID FROM CIDER_CRIME.CRIMINAL;"
+    )
+    default_criminal_id = 901
+    if next_criminal_df is not None and not next_criminal_df.empty:
+        default_criminal_id = int(next_criminal_df["Next_Criminal_ID"].iloc[0])
+
+    if case_options is None or case_options.empty:
+        st.info("No cases found in your branch to map suspects.")
+    else:
+        with st.form("acp_add_suspect_form"):
+
+            selected_case_id = st.selectbox("Select Case ID", case_options["Case_ID"])
+            suspect_mode = st.radio(
+                "Suspect Source",
+                ["Use Existing Suspect", "Create New Suspect"],
+                horizontal=True
+            )
+
+            role_in_case = st.selectbox(
+                "Role In Case",
+                ["Suspect", "Accused", "Convicted", "Associate", "Unknown"]
+            )
+
+            if suspect_mode == "Use Existing Suspect":
+                if existing_criminals is not None and not existing_criminals.empty:
+                    selected_criminal_id = st.selectbox(
+                        "Select Criminal ID",
+                        existing_criminals["Criminal_ID"]
+                    )
+
+                    selected_row = existing_criminals[
+                        existing_criminals["Criminal_ID"] == selected_criminal_id
+                    ]
+                    if not selected_row.empty:
+                        st.caption(
+                            f"Name: {selected_row['Name'].iloc[0]} | Age: {selected_row['Age'].iloc[0]}"
+                        )
+                else:
+                    selected_criminal_id = None
+                    st.warning("No existing suspects found. Choose 'Create New Suspect'.")
+            else:
+                st.text_input(
+                    "Criminal ID (Auto Generated)",
+                    value=str(default_criminal_id),
+                    disabled=True
+                )
+                new_name = st.text_input("Suspect Name")
+                new_age = st.number_input("Age", min_value=1, max_value=120, step=1)
+                new_history = st.text_area("Previous Crime History")
+
+            submit_suspect = st.form_submit_button("Add Suspect To Case")
+
+            if submit_suspect:
+                try:
+                    if selected_case_id is None:
+                        st.warning("Please select a valid case.")
+                    else:
+                        if suspect_mode == "Use Existing Suspect":
+                            if selected_criminal_id is None:
+                                st.warning("No suspect selected.")
+                            else:
+                                link_exists = run_query(
+                                    f"""
+                                    SELECT 1
+                                    FROM CIDER_CRIME.CASE_CRIMINAL
+                                    WHERE Case_ID = {selected_case_id}
+                                      AND Criminal_ID = {selected_criminal_id};
+                                    """
+                                )
+
+                                if link_exists is not None and not link_exists.empty:
+                                    st.warning("This suspect is already linked with the selected case.")
+                                else:
+                                    run_query(
+                                        f"""
+                                        INSERT INTO CIDER_CRIME.CASE_CRIMINAL
+                                        (Case_ID, Criminal_ID, Role_In_Case)
+                                        VALUES
+                                        ({selected_case_id}, {selected_criminal_id}, '{role_in_case}');
+                                        """
+                                    )
+                                    st.success("Suspect linked to case successfully.")
+                        else:
+                            name_clean = new_name.strip().replace("'", "''")
+                            history_clean = new_history.strip().replace("'", "''")
+
+                            if not name_clean:
+                                st.warning("Suspect name is required.")
+                            else:
+                                next_criminal_df_submit = run_query(
+                                    "SELECT COALESCE(MAX(Criminal_ID), 900) + 1 AS Next_Criminal_ID FROM CIDER_CRIME.CRIMINAL;"
+                                )
+                                selected_criminal_id = default_criminal_id
+                                if next_criminal_df_submit is not None and not next_criminal_df_submit.empty:
+                                    selected_criminal_id = int(next_criminal_df_submit["Next_Criminal_ID"].iloc[0])
+
+                                run_query(
+                                    f"""
+                                    INSERT INTO CIDER_CRIME.CRIMINAL
+                                    (Criminal_ID, Name, Age, Previous_Crime_History)
+                                    VALUES
+                                    ({selected_criminal_id}, '{name_clean}', {new_age}, '{history_clean}');
+                                    """
+                                )
+
+                                run_query(
+                                    f"""
+                                    INSERT INTO CIDER_CRIME.CASE_CRIMINAL
+                                    (Case_ID, Criminal_ID, Role_In_Case)
+                                    VALUES
+                                    ({selected_case_id}, {selected_criminal_id}, '{role_in_case}');
+                                    """
+                                )
+
+                                st.success(
+                                    f"New suspect created and linked to case successfully. Criminal ID: {selected_criminal_id}"
+                                )
+                                time.sleep(1)
+                                st.rerun()
+
+                except Exception as e:
+                    st.error(f"Database Error: {e}")
 
 st.divider()
 

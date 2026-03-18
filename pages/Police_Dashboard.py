@@ -169,17 +169,63 @@ with tab2:
             ["Active", "Pending", "Solved"]
         )
 
+        final_criminal_ids = []
+
+        if new_status == "Solved":
+            suspects_df = run_query(
+                f"""
+                SELECT cc.Criminal_ID, c.Name, cc.Role_In_Case
+                FROM CIDER_CRIME.CASE_CRIMINAL cc
+                JOIN CIDER_CRIME.CRIMINAL c
+                  ON cc.Criminal_ID = c.Criminal_ID
+                WHERE cc.Case_ID = {case_id}
+                ORDER BY cc.Criminal_ID;
+                """
+            )
+
+            if suspects_df is not None and not suspects_df.empty:
+                suspect_options = [
+                    f"{int(row['Criminal_ID'])} - {row['Name']} ({row['Role_In_Case']})"
+                    for _, row in suspects_df.iterrows()
+                ]
+
+                selected_suspects = st.multiselect(
+                    "Select Final Criminal(s)",
+                    options=suspect_options,
+                    help="Selected suspects will be marked as Convicted for this case."
+                )
+
+                final_criminal_ids = [int(item.split(" - ")[0]) for item in selected_suspects]
+            else:
+                st.info("No suspects linked to this case yet. You can still mark case as solved.")
+
         if st.button("Update Status"):
 
-            query = f"""
-            UPDATE CIDER_CRIME.CASE_FILE
-            SET Status = '{new_status}'
-            WHERE Case_ID = {case_id};
-            """
+            try:
+                query = f"""
+                UPDATE CIDER_CRIME.CASE_FILE
+                SET Status = '{new_status}'
+                WHERE Case_ID = {case_id};
+                """
 
-            run_query(query)
+                run_query(query)
 
-            st.toast("Updated!")
+                if new_status == "Solved" and final_criminal_ids:
+                    for criminal_id in final_criminal_ids:
+                        update_role_query = f"""
+                        UPDATE CIDER_CRIME.CASE_CRIMINAL
+                        SET Role_In_Case = 'Convicted'
+                        WHERE Case_ID = {case_id}
+                          AND Criminal_ID = {criminal_id};
+                        """
+                        run_query(update_role_query)
+
+                    st.success("Case marked as solved and final criminals updated.")
+                else:
+                    st.toast("Updated!")
+
+            except Exception as e:
+                st.error(f"Database Error: {e}")
 
     else:
         st.info("No cases assigned.")
