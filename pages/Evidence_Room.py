@@ -172,7 +172,18 @@ with tab2:
 
     st.subheader("Register New Evidence")
 
-    case_ids_df = run_query("SELECT Case_ID FROM CIDER_CRIME.CASE_FILE ORDER BY Case_ID;")
+    case_ids_df = run_query(
+        """
+        SELECT Case_ID, Status
+        FROM CIDER_CRIME.CASE_FILE
+        ORDER BY Case_ID;
+        """
+    )
+    eligible_cases_df = None
+    if case_ids_df is not None and not case_ids_df.empty:
+        eligible_cases_df = case_ids_df[
+            case_ids_df["Status"].astype(str).str.lower() != "solved"
+        ]
 
     with st.form("add_evidence_form"):
 
@@ -186,8 +197,11 @@ with tab2:
         analysis = st.text_area("Analysis Log")
         storage = st.text_input("Storage Location")
 
-        if case_ids_df is not None and not case_ids_df.empty:
-            case_id = st.selectbox("Case ID", case_ids_df["Case_ID"])
+        if eligible_cases_df is not None and not eligible_cases_df.empty:
+            case_id = st.selectbox("Case ID", eligible_cases_df["Case_ID"])
+        elif case_ids_df is not None and not case_ids_df.empty:
+            case_id = None
+            st.warning("All cases are solved. Evidence cannot be added.")
         else:
             case_id = None
             st.info("No case IDs available in database.")
@@ -202,19 +216,27 @@ with tab2:
                     st.warning("Cannot add evidence without a valid Case ID.")
                 else:
 
-                    insert_query = f"""
-                    INSERT INTO CIDER_EVIDENCE.EVIDENCE
-                    (Evidence_ID, Evidence_Type, Analysis_Log, Storage_Location, Case_ID)
-                    VALUES
-                    ({ev_id}, '{ev_type}', '{analysis}', '{storage}', {case_id})
-                    """
+                    selected_case_status = case_ids_df.loc[
+                        case_ids_df["Case_ID"] == case_id, "Status"
+                    ].iloc[0]
 
-                    run_query(insert_query)
+                    if str(selected_case_status).strip().lower() == "solved":
+                        st.error("Cannot add evidence to a solved case.")
+                    else:
 
-                    st.success("Evidence registered successfully")
+                        insert_query = f"""
+                        INSERT INTO CIDER_EVIDENCE.EVIDENCE
+                        (Evidence_ID, Evidence_Type, Analysis_Log, Storage_Location, Case_ID)
+                        VALUES
+                        ({ev_id}, '{ev_type}', '{analysis}', '{storage}', {case_id})
+                        """
 
-                    time.sleep(1)
-                    st.rerun()
+                        run_query(insert_query)
+
+                        st.success("Evidence registered successfully")
+
+                        time.sleep(1)
+                        st.rerun()
 
             except Exception as e:
                 st.error(f"Database Error: {e}")
