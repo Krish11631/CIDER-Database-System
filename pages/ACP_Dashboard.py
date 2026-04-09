@@ -2,6 +2,9 @@ import streamlit as st
 from database import run_query
 import pandas as pd
 import time
+from streamlit_autorefresh import st_autorefresh
+
+count = st_autorefresh(3000)
 
 st.markdown("""
 <style>

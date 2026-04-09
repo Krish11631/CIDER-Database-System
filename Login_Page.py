@@ -1,5 +1,8 @@
 import streamlit as st
 from database import run_query
+from streamlit_autorefresh import st_autorefresh
+
+count = st_autorefresh(3000)
 
 st.set_page_config(page_title="CIDER Login", layout="centered")
 
